@@ -8,3 +8,4 @@ export * from './campus';
 export * from './settings';
 export * from './professor';
 export * from './messages';
+export * from './grades';
