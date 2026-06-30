@@ -10,6 +10,7 @@ import ProfessorHeader from '@/components/professor/ProfessorHeader';
 import RatingSummary from '@/components/professor/RatingSummary';
 import RatingTags from '@/components/professor/RatingTags';
 import ReviewCarousel from '@/components/professor/ReviewCarousel';
+import GradeDistribution from '@/components/GradeDistribution';
 import { Settings } from 'lucide-react';
 import type { ProfessorData, SettingsSections } from '@/types';
 
@@ -26,6 +27,7 @@ export default function ProfessorPanel({
   localResearchTopic,
   localClassesTaught,
   instructorName,
+  grades,
 }: ProfessorData) {
   const { settings, loading: settingsLoading } = useSettings();
 
@@ -142,6 +144,14 @@ export default function ProfessorPanel({
                     numRatings={numRatings}
                     rmpUrl={rmpUrl}
                   />
+                  <Separator className="my-3" />
+                </motion.div>
+              )}
+
+              {/* Grade distribution (bundled TAMU registrar data) */}
+              {grades && (
+                <motion.div variants={stagger.item} className="mb-1">
+                  <GradeDistribution grades={grades} />
                   <Separator className="my-3" />
                 </motion.div>
               )}
