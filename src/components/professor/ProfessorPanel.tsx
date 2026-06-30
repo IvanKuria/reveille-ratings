@@ -91,10 +91,10 @@ export default function ProfessorPanel({
         )}
       >
         {brandLogoUrl && (
-          <img src={brandLogoUrl} alt="AggieRatings" className="size-6" />
+          <img src={brandLogoUrl} alt="Reveille Ratings" className="size-6" />
         )}
         <h2 className="text-sm font-semibold tracking-tight flex-1">
-          AggieRatings
+          Reveille Ratings
         </h2>
         <button
           onClick={() => chrome.runtime.openOptionsPage()}
@@ -182,7 +182,7 @@ export default function ProfessorPanel({
                 className="flex flex-col items-center gap-1.5 pt-4 pb-6"
               >
                 <a
-                  href="mailto:ikuria@ucsc.edu?subject=AggieRatings Feedback"
+                  href="mailto:ikuria@ucsc.edu?subject=Reveille Ratings Feedback"
                   className={cn(
                     'text-xs text-muted-foreground',
                     'hover:text-foreground transition-colors',

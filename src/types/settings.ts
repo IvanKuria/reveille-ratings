@@ -4,7 +4,7 @@
  */
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-export type AccentColor = 'aggie-blue' | 'aggie-gold' | 'custom';
+export type AccentColor = 'maroon' | 'custom';
 export type ViewMode = 'expanded' | 'compact';
 
 export interface SettingsSections {

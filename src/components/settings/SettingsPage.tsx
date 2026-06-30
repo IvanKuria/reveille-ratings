@@ -30,13 +30,13 @@ export default function SettingsPage() {
         {brandUrl && (
           <img
             src={brandUrl}
-            alt="AggieRatings"
+            alt="Reveille Ratings"
             className="w-12 h-12 rounded-full"
           />
         )}
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            AggieRatings
+            Reveille Ratings
           </h1>
           <p className="text-sm text-muted-foreground">
             Customize your experience
@@ -96,21 +96,21 @@ export default function SettingsPage() {
 
       {/* Footer */}
       <div className="mt-8 text-center text-xs text-muted-foreground">
-        <p>AggieRatings v1.0 — Made for UC Davis</p>
+        <p>Reveille Ratings v1.0 — Made for Texas A&amp;M</p>
         <p className="mt-1">
           Made by{' '}
           <a
             href="https://www.linkedin.com/in/ivan-kuria-46ab68312/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-aggie-blue hover:underline"
+            className="text-maroon hover:underline"
           >
             Ivan Kuria
           </a>
         </p>
         <a
-          href="mailto:ikuria@ucsc.edu?subject=AggieRatings Feedback"
-          className="text-aggie-blue hover:underline mt-1 inline-block"
+          href="mailto:ikuria@ucsc.edu?subject=Reveille Ratings Feedback"
+          className="text-maroon hover:underline mt-1 inline-block"
         >
           Send feedback
         </a>

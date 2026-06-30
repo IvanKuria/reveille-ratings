@@ -152,16 +152,16 @@ function EmptyState() {
       {brandUrl && (
         <img
           src={brandUrl}
-          alt="AggieRatings"
+          alt="Reveille Ratings"
           className="w-20 h-20 rounded-full mb-6 opacity-60"
         />
       )}
       <h2 className="text-lg font-semibold text-foreground mb-2">
-        AggieRatings
+        Reveille Ratings
       </h2>
       <p className="text-sm text-muted-foreground max-w-[240px]">
-        Click a professor's rating bar on the class search page to view their
-        details here.
+        Click a professor's rating bar on the Howdy class search page to view
+        their details here.
       </p>
       <button
         onClick={() => chrome.runtime.openOptionsPage()}

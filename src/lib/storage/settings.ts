@@ -8,7 +8,7 @@ import type { AppSettings } from '@/types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light', // "light" | "dark" | "system"
-  accentColor: 'aggie-blue', // "aggie-blue" | "aggie-gold" | "custom"
+  accentColor: 'maroon', // "maroon" | "custom"
   viewMode: 'expanded', // "expanded" | "compact"
   sections: {
     rmpRatings: true,

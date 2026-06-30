@@ -1,7 +1,7 @@
 /**
  * @file RatingBar.tsx
  * Compact inline rating bar: star rating badge + details button.
- * Designed for injection into the UC Davis Class Search Tool.
+ * Designed for injection into TAMU's Howdy class-search ag-Grid cells.
  */
 
 import React from 'react';

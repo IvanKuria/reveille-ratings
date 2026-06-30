@@ -16,7 +16,7 @@ function Switch({
         'peer inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 shadow-xs outline-none transition-all duration-200',
         'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        'data-[state=checked]:bg-aggie-blue data-[state=checked]:border-aggie-blue',
+        'data-[state=checked]:bg-maroon data-[state=checked]:border-maroon',
         'data-[state=unchecked]:bg-gray-300 data-[state=unchecked]:border-gray-300',
         'dark:data-[state=unchecked]:bg-gray-600 dark:data-[state=unchecked]:border-gray-600',
         className
