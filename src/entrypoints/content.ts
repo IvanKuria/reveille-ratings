@@ -86,10 +86,16 @@ async function processRow(row: HTMLElement): Promise<void> {
 
   const courseName = subject && number ? `${subject} ${number}` : null;
 
-  const mount = createMountPoint(instrCell, BADGE_CLASS);
+  // Inject INTO the cell-value span (right after the instructor name), not the
+  // cell itself: ag-Grid's `.ag-cell-wrapper` fills the full (auto-height) cell,
+  // so a sibling appended after it lands below the cell's bottom edge and is
+  // clipped by the cell's `overflow: hidden`. The value span sits at the top.
+  const valueEl =
+    instrCell.querySelector<HTMLElement>('.ag-cell-value') || instrCell;
+  const mount = createMountPoint(valueEl, BADGE_CLASS);
   mount.dataset.crn = stamp;
-  // The cell is `overflow: hidden`; render the badge on its own line under the
-  // instructor name (rows are tall enough — auto-height from meeting info).
+  // Render the badge on its own line under the instructor name (rows are tall
+  // enough — auto-height from the meeting-times column).
   mount.style.display = 'block';
   renderComponent(mount, RatingBar, { professorData: null, loading: true });
 
