@@ -10,6 +10,8 @@ export interface FetchProfessorDataMessage {
   action: 'fetchProfessorData';
   ID: string | null;
   name: string;
+  /** "<SUBJECT> <NUMBER>" of the section, used for the grade lookup. */
+  course?: string | null;
   rateMyProfSchoolId?: string;
 }
 

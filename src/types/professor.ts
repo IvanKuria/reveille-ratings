@@ -12,12 +12,15 @@
 
 import type { CampusProfile } from './campus';
 import type { RmpTeacherNode, RmpReview } from './rmp';
+import type { GradeSummary } from './grades';
 
 export interface ProfessorBundle {
   data: CampusProfile | null;
   campusSuccess: boolean;
   rateMyProfessor: RmpTeacherNode | null;
   reviews: RmpReview[];
+  /** Aggregated TAMU grade distribution for this instructor + course. */
+  grades: GradeSummary | null;
 }
 
 export interface ProfessorData {
@@ -27,9 +30,11 @@ export interface ProfessorData {
   localResearchTopic: string | null;
   localClassesTaught: string[] | null;
   instructorName: string;
-  /** Instructor email when a source provides one; null on UC Davis. */
+  /** Instructor email when a source provides one; null on TAMU. */
   instructorEmail: string | null;
   course: string | null;
+  /** Aggregated TAMU grade distribution for this instructor + course. */
+  grades: GradeSummary | null;
 }
 
 /** chrome.storage.session payload for the side-panel handoff. */

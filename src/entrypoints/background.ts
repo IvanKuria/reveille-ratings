@@ -11,6 +11,7 @@ import {
   selectBestRmpMatch,
   fetchProfessorReviews,
 } from '@/lib/background/rmpCache';
+import { lookupGrades } from '@/lib/grades/load';
 import { getSettings } from '@/lib/storage/settings';
 import { logger } from '@/lib/logger';
 import {
@@ -23,6 +24,7 @@ import type {
   ProfessorBundle,
   PendingProfessor,
   RmpReview,
+  GradeSummary,
 } from '@/types';
 
 /**
@@ -32,10 +34,11 @@ import type {
 async function fetchProfessorBundle(
   name: string,
   _ID: string | null,
+  course?: string | null,
   rateMyProfSchoolId?: string
 ): Promise<ProfessorBundle> {
-  // GT has no public campus-directory source, so this is RMP-only. We always key
-  // the RMP cache by name (the content script passes the 'jdoe' UID sentinel).
+  // TAMU has no public campus-directory source, so this is RMP-only. We always
+  // key the RMP cache by name (the content script passes a null UID).
   const rmpCacheKey = `name_${name}`;
   const rmpResult = await fetchCachedRateMyProfessorData(
     rmpCacheKey,
@@ -84,11 +87,21 @@ async function fetchProfessorBundle(
     }
   }
 
+  // Aggregated grade distribution from the bundled registrar snapshot, matched
+  // on (last name, first initial) + course. Independent of the RMP match.
+  let grades: GradeSummary | null = null;
+  try {
+    grades = await lookupGrades(name, course ?? null);
+  } catch (err) {
+    logger.error('Error looking up grades:', err);
+  }
+
   return {
     data: null,
     campusSuccess: false,
     rateMyProfessor: rateMyProfessorNode,
     reviews,
+    grades,
   };
 }
 
@@ -105,6 +118,7 @@ export default defineBackground(() => {
             const result = await fetchProfessorBundle(
               message.name,
               message.ID,
+              message.course,
               message.rateMyProfSchoolId
             );
             sendResponse(result);

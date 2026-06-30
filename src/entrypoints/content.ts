@@ -2,20 +2,22 @@
  * @file content.ts
  * WXT content script entrypoint (isolated world).
  *
- * Injects professor rating bars into UC Davis's Class Search Tool
- * (registrar-apps.ucdavis.edu/courses/search). The tool is a ColdFusion app
- * that AJAX-POSTs the search form to `course_search_results.cfm` and drops the
- * returned HTML fragment into `#courseResultsDiv`. Results live in a
- * `<table id="mc_win">`, one `<tr>` per section. Each data row carries:
- *   - cell 0: course code, e.g. "ECS 036A"
- *   - cell 3: instructor + units, e.g. "Porquet-Lupine, J" then <em>4.0</em>
- *   - a `viewCourse('<CRN>')` onclick that yields the CRN
+ * Injects RMP rating badges into TAMU's public Howdy class-search portlet
+ * (howdyportal.tamu.edu/uPortal/p/public-class-search-ui.ctf1). The portlet
+ * renders an ag-Grid (`ag-theme-balham`) table that VIRTUALIZES rows: only
+ * visible rows exist in the DOM, and ag-Grid recycles a given `.ag-row` node
+ * for a different section as you scroll. So we:
+ *   (1) watch the grid viewport with a debounced MutationObserver,
+ *   (2) inject the badge INSIDE each instructor cell (rows are absolutely
+ *       positioned, so the UC Davis sibling-row trick doesn't apply), and
+ *   (3) make injection recycle-safe by stamping each mount with its section's
+ *       CRN (`dataset.crn`): on every scan we compare the stamp to the row's
+ *       current CRN — equal means the badge already belongs to this section
+ *       (skip), different means the row was recycled (tear down + re-render).
  *
- * Instructor names are "Last, FirstInitial" only — the matcher in the
- * background worker is initial-aware and handles the ambiguity.
- *
- * We watch `#courseResultsDiv` with a MutationObserver (it is re-filled on every
- * search and re-sort) and inject a full-width sibling row beneath each section.
+ * RMP results are cached by name in the background worker, so re-injecting a
+ * recycled or returning row is effectively free. Sections with no RMP match
+ * keep an empty stamped marker so they aren't re-fetched on every tick.
  */
 
 import '@/assets/rating-bar.css';
@@ -25,6 +27,7 @@ import {
   unmountComponent,
   isPlaceholderName,
 } from '@/lib/content/shared/mountHelper';
+import { AG_GRID, extractRow } from '@/lib/content/agGrid';
 import RatingBar from '@/components/RatingBar';
 import type {
   ProfessorData,
@@ -32,123 +35,76 @@ import type {
   FetchProfessorDataResponse,
 } from '@/types';
 
-const RESULTS_CONTAINER = '#courseResultsDiv';
-const RESULTS_TABLE = '#mc_win';
-const PROCESSED_ATTR = 'data-ar-processed';
+const BADGE_CLASS = 'rms-rating-bar-root';
 
 /**
- * Asks the background worker for RMP data by name. We pass the 'jdoe' sentinel
- * as the UID so the background skips any campus-directory lookup and keys the
- * RMP cache by name (UC Davis has no campus-directory source).
+ * Asks the background worker for RMP data by name. There is no campus-directory
+ * source for TAMU, so the UID is null and the worker keys the RMP cache by name.
  */
-function fetchProfessorData(name: string): Promise<FetchProfessorDataResponse> {
+function fetchProfessorData(
+  name: string,
+  course: string | null
+): Promise<FetchProfessorDataResponse> {
   // Bail if the extension was reloaded while this page stayed open (stale
-  // context). The caller treats a rejection as "no data" and removes the bar.
+  // context). The caller treats a rejection as "no data".
   if (!chrome.runtime?.id) {
     return Promise.reject(new Error('Extension context invalidated'));
   }
   return chrome.runtime.sendMessage({
     action: 'fetchProfessorData',
-    ID: 'jdoe',
+    ID: null,
     name,
+    course,
   });
 }
 
-/** A section parsed from one results-table row. */
-interface ParsedRow {
-  course: string;
-  instructorName: string;
-  crn: string | null;
-}
-
 /**
- * Reads course code, instructor name (stripping the trailing units `<em>`),
- * and CRN from a results-table `<tr>`. Returns null if the row isn't a section
- * data row (header rows, spacers).
+ * Processes one grid row: parses its instructor + CRN, then injects (or
+ * refreshes) the rating badge inside the instructor cell. Recycle-safe via the
+ * CRN stamp on the mount.
  */
-function parseRow(tr: HTMLTableRowElement): ParsedRow | null {
-  const cells = tr.querySelectorAll<HTMLTableCellElement>('td');
-  if (cells.length < 4) return null;
+async function processRow(row: HTMLElement): Promise<void> {
+  const instrCell = row.querySelector<HTMLElement>(
+    `[col-id="${AG_GRID.instructorColId}"]`
+  );
+  if (!instrCell) return;
 
-  const course = (cells[0].textContent || '').replace(/\s+/g, ' ').trim();
+  const { instructorName, subject, number, crn } = extractRow(row);
+  const stamp = crn ?? '';
 
-  // Instructor cell holds "Name <br> <em>units</em>" — clone and drop the <em>
-  // so only the instructor name text remains.
-  const instrCell = cells[3].cloneNode(true) as HTMLElement;
-  instrCell.querySelectorAll('em').forEach((el) => el.remove());
-  const instructorName = (instrCell.textContent || '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  // If a badge already exists for THIS section, leave it; otherwise the row was
+  // recycled to a different section, so tear the stale badge down.
+  const existing = instrCell.querySelector<HTMLElement>(`.${BADGE_CLASS}`);
+  if (existing) {
+    if (existing.dataset.crn === stamp) return;
+    unmountComponent(existing);
+    existing.remove();
+  }
 
-  // CRN is embedded in the row's viewCourse('<crn>') onclick handler.
-  const onclickEl = tr.querySelector('[onclick*="viewCourse"]');
-  const crn =
-    onclickEl?.getAttribute('onclick')?.match(/viewCourse\('(\d+)'/)?.[1] ??
-    null;
-
-  if (!course && !instructorName) return null;
-  return { course, instructorName, crn };
-}
-
-/**
- * Builds a full-width sibling row that holds the rating bar, keyed to its
- * section row so we avoid duplicates and can clean up on re-render.
- */
-function buildBarRow(key: string): {
-  row: HTMLTableRowElement;
-  mount: HTMLElement;
-} {
-  const row = document.createElement('tr');
-  row.className = 'rms-bar-row';
-  row.setAttribute('data-ar-for', key);
-  const td = document.createElement('td');
-  td.colSpan = 99; // clamps to the table's real column count
-  td.className = 'rms-bar-cell';
-  const mount = createMountPoint(td, 'rms-rating-bar-root');
-  row.appendChild(td);
-  return { row, mount };
-}
-
-/**
- * Processes a single results row: parses its instructor, injects a loading bar,
- * then fills it with RMP data (or removes it if there's no match).
- */
-async function processRow(tr: HTMLTableRowElement): Promise<void> {
-  // Mark processed up front so concurrent scans don't double-inject.
-  tr.setAttribute(PROCESSED_ATTR, '1');
-
-  const parsed = parseRow(tr);
-  if (!parsed) return;
-
-  const { course, instructorName, crn } = parsed;
-  // "The Staff" and other placeholders have nothing to look up.
+  // "Staff" / "TBA" and other placeholders have nothing to look up.
   if (!instructorName || isPlaceholderName(instructorName)) return;
 
-  // Stable per-row key: CRN when present, else course+name.
-  const key = crn || `${course}|${instructorName}`;
+  const courseName = subject && number ? `${subject} ${number}` : null;
 
-  // Guard against a stale bar row left by a previous pass.
-  const existing = tr.parentElement?.querySelector(
-    `tr.rms-bar-row[data-ar-for="${CSS.escape(key)}"]`
-  );
-  if (existing) return;
-
-  const { row, mount } = buildBarRow(key);
-  tr.parentElement?.insertBefore(row, tr.nextSibling);
+  const mount = createMountPoint(instrCell, BADGE_CLASS);
+  mount.dataset.crn = stamp;
+  // The cell is `overflow: hidden`; render the badge on its own line under the
+  // instructor name (rows are tall enough — auto-height from meeting info).
+  mount.style.display = 'block';
   renderComponent(mount, RatingBar, { professorData: null, loading: true });
 
   let bundle: ProfessorBundle | null = null;
   try {
-    const resp = await fetchProfessorData(instructorName);
+    const resp = await fetchProfessorData(instructorName, courseName);
     bundle = resp && !('error' in resp) ? resp : null;
   } catch {
     bundle = null;
   }
 
-  // No RMP match -> remove the bar entirely (no empty UI).
+  // No RMP match -> empty the mount but KEEP it as a stamped marker so we don't
+  // re-fetch this section on every observer tick.
   if (!bundle || !bundle.rateMyProfessor) {
     unmountComponent(mount);
-    row.remove();
     return;
   }
 
@@ -156,38 +112,33 @@ async function processRow(tr: HTMLTableRowElement): Promise<void> {
     apiData: null,
     rateMyProfessor: bundle.rateMyProfessor,
     reviews: bundle.reviews || [],
+    grades: bundle.grades ?? null,
     localResearchTopic: null,
     localClassesTaught: null,
     instructorName,
     instructorEmail: null,
-    course,
+    course: courseName,
   };
   renderComponent(mount, RatingBar, { professorData, loading: false });
 }
 
-/** Scans all unprocessed result rows and processes them. Idempotent. */
+/** Scans all currently-rendered grid rows and processes them. Idempotent. */
 function scan(): void {
-  const rows = document.querySelectorAll<HTMLTableRowElement>(
-    `${RESULTS_TABLE} tr`
+  const rows = document.querySelectorAll<HTMLElement>(
+    `${AG_GRID.rowContainerSelector} ${AG_GRID.rowSelector}`
   );
-  rows.forEach((tr) => {
-    // Skip our own injected bar rows and already-handled rows.
-    if (tr.classList.contains('rms-bar-row')) return;
-    if (tr.getAttribute(PROCESSED_ATTR)) return;
-    void processRow(tr);
-  });
+  rows.forEach((row) => void processRow(row));
 }
 
 export default defineContentScript({
-  matches: ['https://registrar-apps.ucdavis.edu/courses/search/*'],
+  matches: ['https://howdyportal.tamu.edu/uPortal/*'],
   runAt: 'document_idle',
   cssInjectionMode: 'manifest',
 
   main() {
-    // The results fragment is injected into #courseResultsDiv on every search
-    // and rebuilt on sort/paginate, so we re-scan whenever it mutates. scan()
-    // ignores our own injected rows, so this never loops. Debounced because a
-    // single fragment swap fires many childList mutations.
+    // ag-Grid mutates the viewport constantly (scroll, sort, filter, search), so
+    // we re-scan on every mutation. processRow is idempotent per (cell, CRN), so
+    // this never loops. Debounced because one scroll fires many mutations.
     let timer: ReturnType<typeof setTimeout> | null = null;
     const schedule = () => {
       if (timer) clearTimeout(timer);
@@ -196,7 +147,7 @@ export default defineContentScript({
 
     const start = () => {
       const container =
-        document.querySelector(RESULTS_CONTAINER) || document.body;
+        document.querySelector(AG_GRID.viewportSelector) || document.body;
       const observer = new MutationObserver(schedule);
       observer.observe(container, { childList: true, subtree: true });
       scan();
